@@ -1,0 +1,34 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>{{ source.title }} — Teach Me</title>
+</head>
+<body>
+    <main>
+        <p><a href="{% url 'home' %}">На главную</a></p>
+        <h1>{{ source.title }}</h1>
+        <p>Режим генерации: {{ source.generation_mode }}</p>
+        <section>
+            <h2>Конспект</h2>
+            <p>{{ source.text|linebreaksbr }}</p>
+        </section>
+        <section>
+            <h2>Карточки</h2>
+            {% for card in source.cards.all %}
+                <article>
+                    <h3>{{ card.question }}</h3>
+                    <details>
+                        <summary>Показать ответ</summary>
+                        <p>{{ card.answer }}</p>
+                        <blockquote>{{ card.source_quote }}</blockquote>
+                    </details>
+                </article>
+            {% empty %}
+                <p>Карточки не найдены.</p>
+            {% endfor %}
+        </section>
+    </main>
+</body>
+</html>
