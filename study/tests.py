@@ -169,12 +169,209 @@ class SourceViewTests(TestCase):
 
         self.assertEqual(response.status_code, 200)
         self.assertContains(response, "Что такое IP-адрес?")
-        self.assertContains(response, "<details>")
+        self.assertContains(
+            response,
+            "<details>\n                        <summary>Показать ответ</summary>",
+        )
         self.assertContains(response, "<summary>Показать ответ</summary>")
-        self.assertContains(response, "Адрес устройства в сети.")
-        self.assertContains(response, DEMO_TEXT[0]["source_quote"])
+        self.assertContains(
+            response,
+            "<p>Адрес устройства в сети.</p>",
+        )
+        self.assertContains(
+            response,
+            f"<blockquote>{DEMO_TEXT[0]['source_quote']}</blockquote>",
+        )
 
     def test_source_detail_returns_404_for_unknown_source(self):
         response = self.client.get(reverse("source_detail", args=[9999]))
 
         self.assertEqual(response.status_code, 404)
+
+    def test_source_detail_filters_cards_and_keeps_global_counts(self):
+        source = Source.objects.create(
+            title="Компьютерные сети",
+            text=self.text,
+            generation_mode="DEMO",
+        )
+        reviewed = Flashcard.objects.create(
+            source=source,
+            position=1,
+            question="Проверенная карточка",
+            answer="Ответ.",
+            source_quote=DEMO_TEXT[0]["source_quote"],
+            status=Flashcard.Status.REVIEWED,
+        )
+        pending = Flashcard.objects.create(
+            source=source,
+            position=2,
+            question="Карточка на проверку",
+            answer="Ответ.",
+            source_quote=DEMO_TEXT[1]["source_quote"],
+        )
+
+        pending_response = self.client.get(
+            reverse("source_detail", args=[source.pk]),
+            {"status": "pending"},
+        )
+        self.assertEqual(pending_response.status_code, 200)
+        self.assertEqual(list(pending_response.context["cards"]), [pending])
+        self.assertEqual(pending_response.context["total_cards"], 2)
+        self.assertEqual(pending_response.context["reviewed_cards"], 1)
+        self.assertEqual(pending_response.context["remaining_cards"], 1)
+
+        verified_response = self.client.get(
+            reverse("source_detail", args=[source.pk]),
+            {"status": "verified"},
+        )
+        self.assertEqual(list(verified_response.context["cards"]), [reviewed])
+        self.assertEqual(verified_response.context["total_cards"], 2)
+
+    def test_empty_status_filter_offers_all_cards_link(self):
+        source = Source.objects.create(
+            title="Компьютерные сети",
+            text=self.text,
+            generation_mode="DEMO",
+        )
+        Flashcard.objects.create(
+            source=source,
+            position=1,
+            question="Проверенная карточка",
+            answer="Ответ.",
+            source_quote=DEMO_TEXT[0]["source_quote"],
+            status=Flashcard.Status.REVIEWED,
+        )
+
+        response = self.client.get(
+            reverse("source_detail", args=[source.pk]),
+            {"status": "pending"},
+        )
+
+        self.assertContains(response, "В этом фильтре карточек нет.")
+        self.assertContains(response, 'href="?status=all">Барлығын көрсету</a>')
+
+    def test_card_edit_get_renders_form_and_source_text(self):
+        source = Source.objects.create(
+            title="Компьютерные сети",
+            text=self.text,
+            generation_mode="DEMO",
+        )
+        card = Flashcard.objects.create(
+            source=source,
+            position=1,
+            question="Что такое IP-адрес?",
+            answer="Адрес устройства в сети.",
+            source_quote=DEMO_TEXT[0]["source_quote"],
+        )
+
+        response = self.client.get(reverse("card_edit", args=[card.pk]))
+
+        self.assertEqual(response.status_code, 200)
+        self.assertContains(response, "Редактировать карточку")
+        self.assertContains(response, self.text)
+        self.assertContains(response, "name=\"question\"")
+        self.assertContains(response, "name=\"answer\"")
+        self.assertContains(response, "name=\"source_quote\"")
+
+    def test_card_edit_saves_changes_and_resets_review_status(self):
+        source = Source.objects.create(
+            title="Компьютерные сети",
+            text=self.text,
+            generation_mode="DEMO",
+        )
+        card = Flashcard.objects.create(
+            source=source,
+            position=1,
+            question="Что такое IP-адрес?",
+            answer="Старый ответ.",
+            source_quote=DEMO_TEXT[0]["source_quote"],
+            status=Flashcard.Status.REVIEWED,
+        )
+
+        response = self.client.post(
+            reverse("card_edit", args=[card.pk]),
+            {
+                "question": "Что обозначает IP-адрес?",
+                "answer": "Адрес устройства в IP-сети.",
+                "source_quote": DEMO_TEXT[0]["source_quote"],
+            },
+        )
+
+        card.refresh_from_db()
+        self.assertRedirects(response, reverse("source_detail", args=[source.pk]))
+        self.assertEqual(card.question, "Что обозначает IP-адрес?")
+        self.assertEqual(card.answer, "Адрес устройства в IP-сети.")
+        self.assertEqual(card.status, Flashcard.Status.NEEDS_REVIEW)
+
+    def test_card_edit_rejects_quote_not_in_source(self):
+        source = Source.objects.create(
+            title="Компьютерные сети",
+            text=self.text,
+            generation_mode="DEMO",
+        )
+        card = Flashcard.objects.create(
+            source=source,
+            position=1,
+            question="Что такое IP-адрес?",
+            answer="Старый ответ.",
+            source_quote=DEMO_TEXT[0]["source_quote"],
+        )
+
+        response = self.client.post(
+            reverse("card_edit", args=[card.pk]),
+            {
+                "question": "Изменённый вопрос",
+                "answer": "Изменённый ответ",
+                "source_quote": "Этой цитаты нет в конспекте.",
+            },
+        )
+
+        card.refresh_from_db()
+        self.assertEqual(response.status_code, 200)
+        self.assertContains(response, "должна присутствовать")
+        self.assertEqual(card.question, "Что такое IP-адрес?")
+        self.assertEqual(card.answer, "Старый ответ.")
+
+    def test_card_delete_get_shows_confirmation_without_deleting(self):
+        source = Source.objects.create(
+            title="Компьютерные сети",
+            text=self.text,
+            generation_mode="DEMO",
+        )
+        card = Flashcard.objects.create(
+            source=source,
+            position=1,
+            question="Что такое IP-адрес?",
+            answer="Адрес устройства в сети.",
+            source_quote=DEMO_TEXT[0]["source_quote"],
+        )
+
+        response = self.client.get(reverse("card_delete", args=[card.pk]))
+
+        self.assertEqual(response.status_code, 200)
+        self.assertContains(response, "Что такое IP-адрес?")
+        self.assertContains(response, "Иә, өшіру / Да, удалить")
+        self.assertContains(response, "Бас тарту / Отмена")
+        self.assertTrue(Flashcard.objects.filter(pk=card.pk).exists())
+
+    def test_card_delete_post_deletes_card_and_redirects_to_source(self):
+        source = Source.objects.create(
+            title="Компьютерные сети",
+            text=self.text,
+            generation_mode="DEMO",
+        )
+        card = Flashcard.objects.create(
+            source=source,
+            position=1,
+            question="Что такое IP-адрес?",
+            answer="Адрес устройства в сети.",
+            source_quote=DEMO_TEXT[0]["source_quote"],
+        )
+
+        response = self.client.post(reverse("card_delete", args=[card.pk]))
+
+        self.assertRedirects(
+            response,
+            reverse("source_detail", args=[source.pk]),
+        )
+        self.assertFalse(Flashcard.objects.filter(pk=card.pk).exists())

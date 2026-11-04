@@ -12,6 +12,10 @@ class Source(models.Model):
 
 
 class Flashcard(models.Model):
+    class Status(models.TextChoices):
+        NEEDS_REVIEW = "needs_review", "Тексеру керек"
+        REVIEWED = "reviewed", "Тексерілді"
+
     source = models.ForeignKey(
         Source,
         on_delete=models.CASCADE,
@@ -21,6 +25,11 @@ class Flashcard(models.Model):
     question = models.CharField(max_length=300)
     answer = models.TextField(max_length=1600)
     source_quote = models.TextField(max_length=1600)
+    status = models.CharField(
+        max_length=20,
+        choices=Status.choices,
+        default=Status.NEEDS_REVIEW,
+    )
 
     class Meta:
         ordering = ["position", "id"]

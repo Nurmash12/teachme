@@ -1,0 +1,38 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>Редактирование карточки — Teach Me</title>
+</head>
+<body>
+    <main>
+        <p><a href="{% url 'source_detail' source.pk %}">К конспекту</a></p>
+        <h1>Редактировать карточку</h1>
+        <section>
+            <h2>Исходный конспект</h2>
+            <p>{{ source.text|linebreaksbr }}</p>
+        </section>
+        <form method="post">
+            {% csrf_token %}
+            {{ form.non_field_errors }}
+            <div>
+                {{ form.question.label_tag }}
+                {{ form.question }}
+                {{ form.question.errors }}
+            </div>
+            <div>
+                {{ form.answer.label_tag }}
+                {{ form.answer }}
+                {{ form.answer.errors }}
+            </div>
+            <div>
+                {{ form.source_quote.label_tag }}
+                {{ form.source_quote }}
+                {{ form.source_quote.errors }}
+            </div>
+            <button type="submit">Сохранить</button>
+        </form>
+    </main>
+</body>
+</html>

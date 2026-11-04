@@ -10,15 +10,50 @@
         <p><a href="{% url 'home' %}">На главную</a></p>
         <h1>{{ source.title }}</h1>
         <p>Режим генерации: {{ source.generation_mode }}</p>
+        <p>Тексерілді {{ reviewed_cards }} / {{ total_cards }}</p>
+        <p>Тексеру керек: {{ remaining_cards }}</p>
+        <nav aria-label="Фильтр карточек">
+            <a href="?status=all"{% if status_filter == "all" %} aria-current="page" class="active"{% endif %}>
+                Барлығы ({{ total_cards }})
+            </a>
+            <a href="?status=pending"{% if status_filter == "pending" %} aria-current="page" class="active"{% endif %}>
+                Тексеру керек ({{ remaining_cards }})
+            </a>
+            <a href="?status=verified"{% if status_filter == "verified" %} aria-current="page" class="active"{% endif %}>
+                Тексерілген ({{ reviewed_cards }})
+            </a>
+        </nav>
         <section>
             <h2>Конспект</h2>
             <p>{{ source.text|linebreaksbr }}</p>
         </section>
         <section>
             <h2>Карточки</h2>
-            {% for card in source.cards.all %}
+            {% for card in cards %}
                 <article>
                     <h3>{{ card.question }}</h3>
+                    <p>
+                        Статус:
+                        {% if card.status == "reviewed" %}
+                            Тексерілді
+                        {% else %}
+                            Тексеру керек
+                        {% endif %}
+                    </p>
+                    <form method="post" action="{% url 'card_review' card.pk %}">
+                        {% csrf_token %}
+                        {% if card.status == "reviewed" %}
+                            <input type="hidden" name="action" value="reset">
+                            <button type="submit">Тексеруге қайтару</button>
+                        {% else %}
+                            <input type="hidden" name="action" value="verify">
+                            <button type="submit">Карточканы тексердім</button>
+                        {% endif %}
+                    </form>
+                    <p>
+                        <a href="{% url 'card_edit' card.pk %}">Өңдеу / Редактировать</a>
+                        <a href="{% url 'card_delete' card.pk %}">Өшіру / Удалить</a>
+                    </p>
                     <details>
                         <summary>Показать ответ</summary>
                         <p>{{ card.answer }}</p>
@@ -26,7 +61,8 @@
                     </details>
                 </article>
             {% empty %}
-                <p>Карточки не найдены.</p>
+                <p>В этом фильтре карточек нет.</p>
+                <p><a href="?status=all">Барлығын көрсету</a></p>
             {% endfor %}
         </section>
     </main>
